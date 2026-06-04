@@ -1,18 +1,175 @@
-<h2 class="sr-only">Wordle minigame</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wordle</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <h1 class="sr-only">Wordle minigame</h1>
 
-<link rel="stylesheet" href="style.css">
+  <div id="wordle-root">
+    <header id="wordle-header">
+      <div class="header-actions">
+        <button type="button" id="how-to-btn" class="toolbar-btn" aria-label="How to Play" title="How to Play">
+          <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2zm-1 18h2v2h-2v-2z"/></svg>
+        </button>
+        <button type="button" id="stats-btn" class="toolbar-btn" aria-label="Statistics" title="Statistics">
+          <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 20h2V10H3v10zm4 0h2V4H7v16zm4 0h2v-6h-2v6zm4 0h2V8h-2v12zm4 0h2V2h-2v18z"/></svg>
+        </button>
+        <button type="button" id="settings-btn" class="toolbar-btn" aria-label="Settings" title="Settings">
+          <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.28 7.28 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.28 7.28 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.63-.05.94s.02.63.05.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7.28 7.28 0 0 0 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5z"/></svg>
+        </button>
+      </div>
+    </header>
 
-<div id="wordle-root">
-  <div id="stats-bar">
-    <div class="stat-item"><span class="stat-num" id="stat-played">0</span>played</div>
-    <div class="stat-item"><span class="stat-num" id="stat-win">0</span>wins</div>
-    <div class="stat-item"><span class="stat-num" id="stat-streak">0</span>streak</div>
-    <div class="stat-item"><span class="stat-num" id="stat-avg">–</span>avg tries</div>
+    <div id="message"></div>
+    <div id="board"></div>
+    <button id="new-game-btn">New game</button>
+    <div id="keyboard"></div>
   </div>
-  <div id="message"></div>
-  <div id="board"></div>
-  <button id="new-game-btn">New game</button>
-  <div id="keyboard"></div>
-</div>
 
-<script src="index.js" defer></script>
+  <div class="wordle-modal" id="help-how-to-modal" role="dialog" aria-modal="true" aria-labelledby="help-how-to-title" hidden>
+    <div class="wordle-modal__backdrop" data-modal-close></div>
+    <div class="wordle-modal__panel">
+      <header class="wordle-modal__header">
+        <h2 id="help-how-to-title">How to Play</h2>
+        <button type="button" class="wordle-modal__close" data-modal-close aria-label="Close">&times;</button>
+      </header>
+      <div class="wordle-modal__body">
+        <p>Guess the <strong>WORD</strong> in 6 tries.</p>
+        <p>Each guess must be a valid 5-letter word. Press <strong>Enter</strong> to submit.</p>
+        <p>After each guess, the color of the tiles will change to show how close your guess was.</p>
+        <div class="help-example">
+          <div class="help-example__row">
+            <span class="help-example__tile help-example__tile--correct">W</span>
+            <span class="help-example__tile">O</span>
+            <span class="help-example__tile">R</span>
+            <span class="help-example__tile">D</span>
+            <span class="help-example__tile">Y</span>
+          </div>
+          <p><strong>W</strong> is in the word and in the correct spot.</p>
+        </div>
+        <div class="help-example">
+          <div class="help-example__row">
+            <span class="help-example__tile">L</span>
+            <span class="help-example__tile help-example__tile--present">I</span>
+            <span class="help-example__tile">G</span>
+            <span class="help-example__tile">H</span>
+            <span class="help-example__tile">T</span>
+          </div>
+          <p><strong>I</strong> is in the word but in the wrong spot.</p>
+        </div>
+        <div class="help-example">
+          <div class="help-example__row">
+            <span class="help-example__tile">R</span>
+            <span class="help-example__tile">O</span>
+            <span class="help-example__tile">G</span>
+            <span class="help-example__tile help-example__tile--absent">U</span>
+            <span class="help-example__tile">E</span>
+          </div>
+          <p><strong>U</strong> is not in the word in any spot.</p>
+        </div>
+        <p class="wordle-modal__footnote">A new puzzle is available each game. Good luck!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wordle-modal" id="stats-modal" role="dialog" aria-modal="true" aria-labelledby="stats-modal-title" hidden>
+    <div class="wordle-modal__backdrop" data-modal-close></div>
+    <div class="wordle-modal__panel">
+      <header class="wordle-modal__header">
+        <h2 id="stats-modal-title">Statistics</h2>
+        <button type="button" class="wordle-modal__close" data-modal-close aria-label="Close">&times;</button>
+      </header>
+      <div class="wordle-modal__body stats-modal__body">
+        <div id="stats-bar" class="stats-modal__grid">
+          <div class="stat-item"><span class="stat-num" id="stat-played">0</span><span class="stat-label">Played</span></div>
+          <div class="stat-item"><span class="stat-num" id="stat-win">0</span><span class="stat-label">Win %</span></div>
+          <div class="stat-item"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">Streak</span></div>
+          <div class="stat-item"><span class="stat-num" id="stat-avg">–</span><span class="stat-label">Avg tries</span></div>
+        </div>
+        <p class="stats-modal__hint">Enable <strong>Save stats</strong> in Settings to keep scores after reload.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wordle-modal" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" hidden>
+    <div class="wordle-modal__backdrop" data-modal-close></div>
+    <div class="wordle-modal__panel wordle-modal__panel--settings">
+      <header class="wordle-modal__header">
+        <h2 id="settings-modal-title">Settings</h2>
+        <button type="button" class="wordle-modal__close" data-modal-close aria-label="Close">&times;</button>
+      </header>
+      <div class="settings-list">
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <span class="setting-row__title">Save Stats</span>
+            <span class="setting-row__desc">Store played games, wins, and streak in this browser.</span>
+          </div>
+          <label class="setting-switch">
+            <input type="checkbox" id="setting-save-stats">
+            <span class="setting-switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <span class="setting-row__title">Hard Mode</span>
+            <span class="setting-row__desc">Any revealed hints must be used in subsequent guesses.</span>
+          </div>
+          <label class="setting-switch">
+            <input type="checkbox" id="setting-hard-mode">
+            <span class="setting-switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <span class="setting-row__title">Dark Theme</span>
+          </div>
+          <label class="setting-switch">
+            <input type="checkbox" id="setting-dark-theme">
+            <span class="setting-switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <span class="setting-row__title">Onscreen Keyboard Input Only</span>
+            <span class="setting-row__desc">Ignore key input except from the onscreen keyboard.</span>
+          </div>
+          <label class="setting-switch">
+            <input type="checkbox" id="setting-onscreen-keyboard">
+            <span class="setting-switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+      <footer class="settings-footer">
+        <div class="settings-footer__inner">
+          <p class="settings-footer__note">
+            A cozy fan-made take on <strong>Wordle</strong> — not affiliated with The New York Times.
+          </p>
+          <div class="settings-footer__cta">
+            <p class="settings-footer__support">
+              Hope you're having fun! If you enjoy it, a star on GitHub would make my day.
+            </p>
+            <a
+              class="settings-footer__star"
+              href="https://github.com/VoMinhHung-SR/minigame-wordle"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg class="settings-footer__star-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M12 2l2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+              </svg>
+              Star on GitHub
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script src="/src/ui.js" defer></script>
+  <script src="/src/index.js" defer></script>
+</body>
+</html>

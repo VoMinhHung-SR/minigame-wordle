@@ -1,3 +1,11 @@
+const STORAGE_KEYS = {
+  saveStats: 'wordle-save-stats',
+  stats: 'wordle-stats',
+  darkTheme: 'wordle-dark-theme',
+  hardMode: 'wordle-hard-mode',
+  onscreenKeyboard: 'wordle-onscreen-keyboard-only'
+};
+
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
@@ -13,7 +21,10 @@ let gameOver = false;
 let tiles = [];
 let keyMap = {};
 let stats = { played: 0, wins: 0, streak: 0, totalTries: 0 };
-
+let saveStatsEnabled = false;
+let darkThemeEnabled = false;
+let hardModeEnabled = false;
+let onscreenKeyboardOnly = false;
 async function loadWords() {
   const [answersRes, allowedRes] = await Promise.all([
     fetch('answers.json'),
@@ -55,7 +66,7 @@ function buildKeyboard() {
     rowEl.className = 'kb-row';
     row.forEach((k) => {
       const btn = document.createElement('button');
-      btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+      btn.className = 'key' + (k === 'ENTER' ? ' wide' : '');
       btn.textContent = k;
       btn.dataset.key = k;
       btn.addEventListener('click', () => handleKey(k));
@@ -69,7 +80,132 @@ function buildKeyboard() {
 function setMessage(msg, isError) {
   const el = document.getElementById('message');
   el.textContent = msg;
-  el.style.color = isError ? '#e24b4a' : 'var(--color-text-primary)';
+  el.classList.toggle('error', !!isError);
+}
+
+function loadSettings() {
+  saveStatsEnabled = localStorage.getItem(STORAGE_KEYS.saveStats) === 'true';
+  hardModeEnabled = localStorage.getItem(STORAGE_KEYS.hardMode) === 'true';
+  onscreenKeyboardOnly = localStorage.getItem(STORAGE_KEYS.onscreenKeyboard) !== 'false';
+
+  const savedDark = localStorage.getItem(STORAGE_KEYS.darkTheme);
+  if (savedDark === 'true' || savedDark === 'false') {
+    darkThemeEnabled = savedDark === 'true';
+  } else {
+    const legacy = localStorage.getItem('wordle-theme');
+    if (legacy === 'dark') darkThemeEnabled = true;
+    else if (legacy === 'light') darkThemeEnabled = false;
+    else darkThemeEnabled = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+}
+
+function loadStatsFromStorage() {
+  if (!saveStatsEnabled) return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.stats);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.played === 'number') stats.played = parsed.played;
+    if (typeof parsed.wins === 'number') stats.wins = parsed.wins;
+    if (typeof parsed.streak === 'number') stats.streak = parsed.streak;
+    if (typeof parsed.totalTries === 'number') stats.totalTries = parsed.totalTries;
+  } catch (_) {
+    /* ignore corrupt data */
+  }
+}
+
+function persistStats() {
+  if (!saveStatsEnabled) return;
+  localStorage.setItem(STORAGE_KEYS.stats, JSON.stringify(stats));
+}
+
+function setSaveStatsEnabled(enabled) {
+  saveStatsEnabled = enabled;
+  if (enabled) {
+    localStorage.setItem(STORAGE_KEYS.saveStats, 'true');
+    loadStatsFromStorage();
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.saveStats);
+  }
+  syncSettingsToggles();
+  updateStats();
+}
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', darkThemeEnabled ? 'dark' : 'light');
+}
+
+function setDarkTheme(enabled) {
+  darkThemeEnabled = enabled;
+  localStorage.setItem(STORAGE_KEYS.darkTheme, String(enabled));
+  applyTheme();
+  syncSettingsToggles();
+}
+
+function setHardMode(enabled) {
+  hardModeEnabled = enabled;
+  localStorage.setItem(STORAGE_KEYS.hardMode, String(enabled));
+  syncSettingsToggles();
+}
+
+function setOnscreenKeyboardOnly(enabled) {
+  onscreenKeyboardOnly = enabled;
+  localStorage.setItem(STORAGE_KEYS.onscreenKeyboard, String(enabled));
+  syncSettingsToggles();
+}
+
+function syncSettingsToggles() {
+  const hard = document.getElementById('setting-hard-mode');
+  const dark = document.getElementById('setting-dark-theme');
+  const keyboard = document.getElementById('setting-onscreen-keyboard');
+  const save = document.getElementById('setting-save-stats');
+  if (hard) hard.checked = hardModeEnabled;
+  if (dark) dark.checked = darkThemeEnabled;
+  if (keyboard) keyboard.checked = onscreenKeyboardOnly;
+  if (save) save.checked = saveStatsEnabled;
+}
+
+function initSettingsPanel() {
+  syncSettingsToggles();
+  document.getElementById('setting-hard-mode')?.addEventListener('change', (e) => {
+    setHardMode(e.target.checked);
+  });
+  document.getElementById('setting-dark-theme')?.addEventListener('change', (e) => {
+    setDarkTheme(e.target.checked);
+  });
+  document.getElementById('setting-onscreen-keyboard')?.addEventListener('change', (e) => {
+    setOnscreenKeyboardOnly(e.target.checked);
+  });
+  document.getElementById('setting-save-stats')?.addEventListener('change', (e) => {
+    setSaveStatsEnabled(e.target.checked);
+  });
+}
+
+function getHardModeRules() {
+  const locked = Array(5).fill(null);
+  const mustInclude = new Set();
+  for (let r = 0; r < currentRow; r++) {
+    for (let c = 0; c < 5; c++) {
+      const tile = tiles[r][c];
+      const letter = tile.textContent;
+      const state = tile.dataset.state;
+      if (!letter || !state) continue;
+      if (state === 'correct') locked[c] = letter;
+      if (state === 'present') mustInclude.add(letter);
+    }
+  }
+  return { locked, mustInclude: [...mustInclude] };
+}
+
+function validateHardMode(guess) {
+  const { locked, mustInclude } = getHardModeRules();
+  for (let c = 0; c < 5; c++) {
+    if (locked[c] && guess[c] !== locked[c]) return false;
+  }
+  for (const letter of mustInclude) {
+    if (!guess.includes(letter)) return false;
+  }
+  return true;
 }
 
 function handleKey(key) {
@@ -111,6 +247,11 @@ function submitGuess() {
   if (!allowed.has(guess)) {
     shakeRow(currentRow);
     setMessage('Not in word list', true);
+    return;
+  }
+  if (hardModeEnabled && !validateHardMode(guess)) {
+    shakeRow(currentRow);
+    setMessage('Hard mode: use all revealed hints', true);
     return;
   }
   setMessage('');
@@ -217,11 +358,15 @@ function updateKeyboard(guess, result) {
 }
 
 function updateStats() {
-  document.getElementById('stat-played').textContent = stats.played;
-  document.getElementById('stat-win').textContent = stats.wins;
-  document.getElementById('stat-streak').textContent = stats.streak;
-  const avg = stats.wins ? (stats.totalTries / stats.wins).toFixed(1) : '–';
-  document.getElementById('stat-avg').textContent = avg;
+  const playedEl = document.getElementById('stat-played');
+  const winEl = document.getElementById('stat-win');
+  const streakEl = document.getElementById('stat-streak');
+  const avgEl = document.getElementById('stat-avg');
+  if (playedEl) playedEl.textContent = stats.played;
+  if (winEl) winEl.textContent = stats.played ? Math.round((stats.wins / stats.played) * 100) : 0;
+  if (streakEl) streakEl.textContent = stats.streak;
+  if (avgEl) avgEl.textContent = stats.wins ? (stats.totalTries / stats.wins).toFixed(1) : '–';
+  persistStats();
 }
 
 function startGame() {
@@ -238,6 +383,8 @@ function startGame() {
 function bindEvents() {
   document.getElementById('new-game-btn').addEventListener('click', startGame);
   document.addEventListener('keydown', (e) => {
+    if (isOverlayBlockingInput()) return;
+    if (onscreenKeyboardOnly) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toUpperCase();
     if (k === 'ENTER' || k === 'BACKSPACE' || /^[A-Z]$/.test(k)) {
@@ -248,6 +395,12 @@ function bindEvents() {
 }
 
 async function init() {
+  loadSettings();
+  applyTheme();
+  initSettingsPanel();
+  initUI();
+  loadStatsFromStorage();
+  updateStats();
   try {
     await loadWords();
     bindEvents();
